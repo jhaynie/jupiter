@@ -101,9 +101,16 @@ func (q *Queue) Cancel(consumerTag string) error {
 	return q.ch.Cancel(consumerTag, false)
 }
 
+// Channel configuration detail
+type Channel struct {
+	PrefetchCount *int `json:"prefetch_count"`
+	PrefetchSize  *int `json:"prefetch_size"`
+}
+
 // Config describes a configuration
 type Config struct {
 	URL       string `json:"url"`
+	Channel   Channel
 	Exchanges map[string]*Exchange
 	Queues    map[string]*Queue
 	Jobs      map[string]*Job
@@ -132,6 +139,20 @@ func (c *Config) Connect() error {
 
 	c.conn = conn
 	c.ch = ch
+
+	// set any channel prefetch configuration
+	if c.Channel.PrefetchCount != nil || c.Channel.PrefetchSize != nil {
+		var count, size int
+		if c.Channel.PrefetchSize != nil {
+			size = *c.Channel.PrefetchSize
+		}
+		if c.Channel.PrefetchCount != nil {
+			count = *c.Channel.PrefetchCount
+		}
+		if err := ch.Qos(count, size, false); err != nil {
+			return fmt.Errorf("Error creating channel to %s. setting Qos returned an error. %v", c.URL, err)
+		}
+	}
 
 	// create all our exchanges
 	for name, ex := range c.Exchanges {

@@ -216,3 +216,73 @@ func TestJobWorkerConfig(t *testing.T) {
 	assert.Nil(config.Queues["echo"].Cancel(echoName))
 	assert.Nil(config.Close())
 }
+
+func TestConfigWithQoS(t *testing.T) {
+	assert := assert.New(t)
+	r := bytes.NewBuffer([]byte(`{
+	"channel": {
+		"prefetch_count": 1
+	},
+	"exchanges": {
+		"pinpt.exchange.main": {
+			"type": "topic",
+			"autodelete": true,
+			"default": true
+		},
+		"pinpt.exchange.github": {
+			"type": "topic",
+			"autodelete": true,
+			"bind": [
+				{
+					"routing": "github.#",
+					"exchange": "pinpt.exchange.main"
+				}
+			]
+		}
+	},
+	"queues": {
+		"pinpt.github.commit": {
+			"autodelete": true,
+			"exchange": "pinpt.exchange.github",
+			"routing": "github.#",
+			"durable": false
+		},
+		"myqueue": {
+			"autodelete": true,
+			"private": true,
+			"exchange": "pinpt.exchange.github",
+			"routing": "#",
+			"durable": false
+		}
+	}
+}`))
+	config, err := NewConfig(r)
+	assert.Nil(err)
+	assert.NotNil(config)
+	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)
+	assert.Nil(config.Connect())
+	defer config.Close()
+	name, ch, err := config.Queues["myqueue"].Consume(true, true, false)
+	assert.Nil(err)
+	assert.NotEmpty(name)
+	assert.NotNil(ch)
+	assert.NotNil(config.Channel.PrefetchCount)
+	assert.Nil(config.Channel.PrefetchSize)
+	assert.Equal(1, *config.Channel.PrefetchCount)
+	assert.Nil(config.Publish("github.commit", amqp.Publishing{
+		Body: []byte("hello"),
+	}))
+	msg := <-ch
+	assert.NotNil(msg)
+	assert.Equal("hello", string(msg.Body))
+	assert.Nil(config.Queues["myqueue"].Cancel(name))
+	name, ch, err = config.Queues["pinpt.github.commit"].Consume(true, true, false)
+	assert.Nil(err)
+	assert.NotEmpty(name)
+	assert.NotNil(ch)
+	msg = <-ch
+	assert.NotNil(msg)
+	assert.Equal("hello", string(msg.Body))
+	assert.Nil(config.Queues["pinpt.github.commit"].Cancel(name))
+	assert.Nil(config.Close())
+}
