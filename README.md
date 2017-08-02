@@ -80,20 +80,20 @@ This configuration will setup 1 exchange named `main` and one queue bound to the
 
 Now we need to create a Work Manager to manager the work.  First we need to create our configuration using our preferred `io.Reader` interface to pass in the configuration.  Then, we going to pass the configuration into `work.New` to create a new Work Manager.  For testing, we are going to just publish a message using the key `echo`. However, note that our configuration above used `#` which is a wildcard topic and will match any message name.
 
-```go
-	config, err := config.New(r)
-	if err != nil {
-		return err
-	}
-	defer config.Close()
-	mgr, err := work.New(config)
-	if err != nil {
-		return err
-	}
-	defer mgr.Close()
-	config.Publish("echo", amqp.Publishing{
-		Body: []byte(`{"hi":"heya"}`),
-	})
+```golang
+config, err := config.New(r)
+if err != nil {
+	return err
+}
+defer config.Close()
+mgr, err := work.New(config)
+if err != nil {
+	return err
+}
+defer mgr.Close()
+config.Publish("echo", amqp.Publishing{
+	Body: []byte(`{"hi":"heya"}`),
+})
 ```
 
 If it works, you should see `{"hi":"heya"}` in the console (based on our `fmt.Println` in our job code above).
@@ -103,13 +103,13 @@ To publish a response, we would add a `publish` key in our job config and we wou
 For example, to publish the response message `myresult`, you would change to:
 
 ```json
-	"jobs": {
-		"echo": {
-			"worker": "myjob",
-			"queue": "echo",
-			"publish": "myresult"
-		}
+"jobs": {
+	"echo": {
+		"worker": "myjob",
+		"queue": "echo",
+		"publish": "myresult"
 	}
+}
 ```
 
 And then in our worker body we might:
