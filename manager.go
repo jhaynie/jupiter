@@ -2,13 +2,17 @@ package jupiter
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 )
 
 type jobRouter struct {
+	job         *Job
 	config      *Config
 	queue       *Queue
 	consumerTag string
@@ -24,29 +28,53 @@ func (r *jobRouter) close() {
 	}
 }
 
+func hashStrings(objects ...string) string {
+	h := sha256.New()
+	for _, o := range objects {
+		io.WriteString(h, o)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 func (r *jobRouter) run() {
 	for msg := range r.ch {
-		var out bytes.Buffer
+		var mqout, redisout bytes.Buffer
 		done := func(err error) {
 			defer msg.Ack(false)
 			if err != nil {
 				log.Println("error processing work", err)
 				return
 			}
-			if r.publish != "" && out.Len() > 0 {
-				outmsg := amqp.Publishing{
-					Type:          r.publish,
-					Body:          out.Bytes(),
-					CorrelationId: msg.MessageId,
-				}
-				if err := r.config.Publish(r.publish, outmsg); err != nil {
-					log.Println("error sending message", err)
+			if mqout.Len() > 0 || redisout.Len() > 0 {
+				exp, err := r.job.Expires()
+				if err != nil {
+					log.Printf("error parsing job expiration `%s`. %v\n", r.job.Expiration, err)
 					return
+				}
+				key := "jupiter." + msg.MessageId + "." + hashStrings(r.job.Name()) + ".result"
+				if mqout.Len() > 0 && r.job.DestinationMQ() {
+					outmsg := amqp.Publishing{
+						Type:          r.publish,
+						Body:          mqout.Bytes(),
+						CorrelationId: msg.MessageId,
+						AppId:         key,
+						Expiration:    fmt.Sprintf("%d", int64(time.Until(time.Now().Add(exp))/time.Millisecond)),
+					}
+					if err := r.config.Publish(r.publish, outmsg); err != nil {
+						log.Println("error sending message.", err)
+						return
+					}
+				}
+				if redisout.Len() > 0 && r.job.DestinationRedis() {
+					if err := r.config.RedisClient().Set(key, redisout.Bytes(), exp).Err(); err != nil {
+						log.Println("error setting job result to redis.", err)
+						return
+					}
 				}
 			}
 		}
 		in := bytes.NewReader(msg.Body)
-		if err := r.worker.Work(WorkMessage{msg.Type, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding}, in, &out, done); err != nil {
+		if err := r.worker.Work(WorkMessage{r.config, msg.Type, msg.AppId, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding, in, &mqout, &redisout}, done); err != nil {
 			log.Println("error processing work", err)
 			return
 		}
@@ -87,6 +115,7 @@ func NewManager(config *Config) (*WorkerManager, error) {
 			return nil, fmt.Errorf("error creating job named `%s`. cannot create consumer for queue named `%s`. %v", name, job.Queue, err)
 		}
 		j := &jobRouter{
+			job:         job,
 			config:      config,
 			queue:       q,
 			consumerTag: consumerTag,

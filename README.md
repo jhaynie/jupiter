@@ -16,6 +16,27 @@ Jupiter preferes declarative configuration over imperative code to configure the
 go get -u github.com/jhaynie/jupiter
 ```
 
+## Requirements
+
+You'll need access to the following for Jupiter to function:
+
+- RabbitMQ
+- Redis
+
+The easiest way for testing is to run both in a docker container such as:
+
+```shell
+docker run -d -p 5672:5672 -p 15672:15672 rabbitmq:management
+docker run -d -p 6379:6379 redis
+```
+
+By default, the configuration will talk with both RabbitMQ and Redis on localhost.
+
+To change the location of the servers, you can set the following in the root of your configuration:
+
+- `mqurl`: defaults to `amqp://guest:guest@localhost:5672/`
+- `redisurl`: defaults to `localhost:6379`
+
 ## Use
 
 First, you need to register one or more job workers.  Workers are responsible for processing incoming data (opaque to Jupiter) and optionally, returning results.
@@ -34,9 +55,9 @@ import (
 type myJob struct {
 }
 
-func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, done jupiter.Done) error {
 	defer done(nil)
-	buf, err := ioutil.ReadAll(in)
+	buf, err := ioutil.ReadAll(msg.Reader())
 	if err != nil {
 		return err
 	}
@@ -118,24 +139,26 @@ For example, to publish the response message `myresult`, you would change to:
 And then in our worker body we might:
 
 ```golang
-func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, done jupiter.Done) error {
 	defer done(nil)
-	_, err := ioutil.ReadAll(in)
+	_, err := ioutil.ReadAll(msg.Reader())
 	if err != nil {
 		return err
 	}
-	_, err = out.Write([]byte("{success:true}"))
+	_, err = msg.Writer().Write([]byte("{success:true}"))
 	return err
 }
 ```
 
+## Async Jobs
+
 To create an asynchronous job, you can use the `done` argument to signal when you're completed.  For example, this job will wait 1 second and then respond:
 
 ```golang
-func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, done jupiter.Done) error {
 	go func() {
 		time.Sleep(time.Second)
-		_, err := out.Write([]byte("{success:true}"))
+		_, err := msg.Writer().Write([]byte("{success:true}"))
 		done(err)
 	}()
 	return nil
@@ -143,3 +166,40 @@ func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done 
 ```
 
 > NOTE: you must invoke done when you are complete in both the synchronous and asynchronous cases.
+
+## Storing Results in different locations
+
+By default, if you have a `publish` property in your `job`, it will publish any data written to `io.Writer` as a RabbitMQ message.
+
+You can change the destination to publish results to `redis` by changing the `destination` property of your `job` to `redis`.  Also, if you the value to `both` it will publish to both RabbitMQ and Redis.
+
+The key will be in the format `jupiter.<MSGID>.<SHA256 of Job Name>.result`.
+
+If you would like to write different messages to RabbitMQ and Redis, you can use separate io.Writer for each:
+
+```golang
+func (j *myJob) Work(msg jupiter.WorkMessage, done jupiter.Done) error {
+	// write to redis
+	_, err := msg.RedisWriter().Write([]byte("{success:true}"))
+	if err != nil {
+		return err
+	}
+	// write to rabbit
+	_, err = msg.MQWriter().Write([]byte("{id:123}"))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+```
+
+> NOTE: using `msg.Writer()` writes to both destinations automatically using a `io.MultiWriter`
+
+As a convenience, the outgoing published to RabbitMQ will have the `AppId` property set to the key used to set the result in Redis.
+
+## Message Expiration
+
+By default, the result will expiry in one day.  This value will be the Message TTL for the RabbitMQ message and the value will be used as the expiration if the result is stored in Redis.
+
+To change the expiration, set the `expires` property in your `job` to a value such as `3d` or `2m` or `10s`.
+

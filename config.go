@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/go-redis/redis"
 	"github.com/streadway/amqp"
 )
 
@@ -43,9 +44,36 @@ func (e *Exchange) Name() string {
 
 // Job describes a queue job
 type Job struct {
-	Queue   string
-	Publish string
-	Worker  string
+	Queue       string
+	Publish     string
+	Worker      string
+	Destination string
+	Expiration  string `json:"expires"`
+
+	name string
+}
+
+// Name returns the name for a job
+func (j *Job) Name() string {
+	return j.name
+}
+
+// Expires will return a time.Duration when the job result expires
+func (j *Job) Expires() (time.Duration, error) {
+	if j.Expiration == "" {
+		return time.Minute * 60 * 24, nil
+	}
+	return time.ParseDuration(j.Expiration)
+}
+
+// DestinationRedis will return true if the job should be sent to redis
+func (j *Job) DestinationRedis() bool {
+	return j.Destination == "redis" || j.Destination == "both"
+}
+
+// DestinationMQ will return true if the job should be sent to Rabbit MQ
+func (j *Job) DestinationMQ() bool {
+	return j.Publish != "" && (j.Destination == "mq" || j.Destination == "both" || j.Destination == "")
 }
 
 // Queue is the details around a specific queue
@@ -112,7 +140,8 @@ type Channel struct {
 
 // Config describes a configuration
 type Config struct {
-	URL       string `json:"url"`
+	MQURL     string `json:"mqurl"`
+	RedisURL  string `json:"redisurl"`
 	Channel   Channel
 	Exchanges map[string]*Exchange
 	Queues    map[string]*Queue
@@ -121,6 +150,12 @@ type Config struct {
 	conn     *amqp.Connection
 	ch       *amqp.Channel
 	exchange *Exchange
+	client   *redis.Client
+}
+
+// RedisClient will return the redis client instance
+func (c *Config) RedisClient() *redis.Client {
+	return c.client
 }
 
 // Publish will publish a message to the default queue
@@ -130,18 +165,23 @@ func (c *Config) Publish(key string, msg amqp.Publishing) error {
 
 // Connect will connect to the MQ server and wire up all the resources based on the config
 func (c *Config) Connect() error {
-	conn, err := amqp.Dial(c.URL)
+	conn, err := amqp.Dial(c.MQURL)
 	if err != nil {
-		return fmt.Errorf("Error connecting to %s. %v", c.URL, err)
+		return fmt.Errorf("Error connecting to %s. %v", c.MQURL, err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return fmt.Errorf("Error creating channel to %s. %v", c.URL, err)
+		return fmt.Errorf("Error creating channel to %s. %v", c.MQURL, err)
 	}
 
 	c.conn = conn
 	c.ch = ch
+
+	c.client = redis.NewClient(&redis.Options{Addr: c.RedisURL})
+	if err := c.client.Ping().Err(); err != nil {
+		return fmt.Errorf("Error connecting to %s. %v", c.RedisURL, err)
+	}
 
 	// set any channel prefetch configuration
 	if c.Channel.PrefetchCount != nil || c.Channel.PrefetchSize != nil {
@@ -153,7 +193,7 @@ func (c *Config) Connect() error {
 			count = *c.Channel.PrefetchCount
 		}
 		if err := ch.Qos(count, size, false); err != nil {
-			return fmt.Errorf("Error creating channel to %s. setting Qos returned an error. %v", c.URL, err)
+			return fmt.Errorf("Error creating channel to %s. setting Qos returned an error. %v", c.MQURL, err)
 		}
 	}
 
@@ -202,6 +242,10 @@ func (c *Config) Connect() error {
 		queue.ch = ch
 	}
 
+	for name, job := range c.Jobs {
+		job.name = name
+	}
+
 	return nil
 }
 
@@ -227,10 +271,13 @@ func NewConfig(r io.Reader) (*Config, error) {
 	dec := json.NewDecoder(r)
 	config := &Config{}
 	if err := dec.Decode(config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing configuration. %v", err)
 	}
-	if config.URL == "" {
-		config.URL = "amqp://guest:guest@localhost:5672/"
+	if config.MQURL == "" {
+		config.MQURL = "amqp://guest:guest@localhost:5672/"
+	}
+	if config.RedisURL == "" {
+		config.RedisURL = "localhost:6379"
 	}
 	return config, nil
 }

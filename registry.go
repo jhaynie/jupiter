@@ -3,7 +3,6 @@ package jupiter
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 )
 
 var (
@@ -14,14 +13,14 @@ type echoWorker struct {
 }
 
 // Work will simply echo back out the json it receives
-func (w *echoWorker) Work(message WorkMessage, in io.Reader, out io.Writer, done Done) error {
+func (w *echoWorker) Work(message WorkMessage, done Done) error {
 	defer done(nil)
-	dec := json.NewDecoder(in)
+	dec := json.NewDecoder(message.Reader())
 	var buf json.RawMessage
 	if err := dec.Decode(&buf); err != nil {
 		return err
 	}
-	_, err := out.Write(buf)
+	_, err := message.Writer().Write(buf)
 	return err
 }
 
