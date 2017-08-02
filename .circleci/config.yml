@@ -15,4 +15,14 @@ jobs:
 
       # specify any bash command here prefixed with `run: `
       - run: go get -v -t -d ./...
+      - run:
+          name: Waiting for RabbitMQ to be ready
+          command: |
+            for i in `seq 1 60`;
+            do
+              nc -z localhost 5672 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for RabbitMQ && exit 1
       - run: go test -v ./...
