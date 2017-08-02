@@ -8,7 +8,7 @@ Workers register to handle jobs by name and have a simplistic in/out type interf
 
 Jupiter preferes declarative configuration over imperative code to configure the orchestration of work.
 
-![jupiter](jupiter.jpg)
+![jupiter](_images/jupiter.jpg)
 
 ## Install
 
