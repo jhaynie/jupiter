@@ -1,4 +1,4 @@
-package work
+package jupiter
 
 import (
 	"bytes"
@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jhaynie/jupiter/pkg/config"
-	"github.com/jhaynie/jupiter/pkg/types"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,7 +17,7 @@ type echoBack struct {
 	wg  sync.WaitGroup
 }
 
-func (e *echoBack) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (e *echoBack) Work(in io.Reader, out io.Writer, done Done) error {
 	defer done(nil)
 	buf, err := ioutil.ReadAll(in)
 	e.buf = buf
@@ -32,7 +30,7 @@ type echoBackAsync struct {
 	wg  sync.WaitGroup
 }
 
-func (e *echoBackAsync) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (e *echoBackAsync) Work(in io.Reader, out io.Writer, done Done) error {
 	go func() {
 		time.Sleep(time.Second)
 		buf, err := ioutil.ReadAll(in)
@@ -103,13 +101,13 @@ func TestJobWorker(t *testing.T) {
 	echo.wg.Add(1)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
-	config, err := config.New(r)
+	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)
 	assert.Nil(config.Connect())
 	defer config.Close()
-	mgr, err := New(config)
+	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()
@@ -182,13 +180,13 @@ func TestAsyncJobWorker(t *testing.T) {
 	echo.wg.Add(1)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
-	config, err := config.New(r)
+	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)
 	assert.Nil(config.Connect())
 	defer config.Close()
-	mgr, err := New(config)
+	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()

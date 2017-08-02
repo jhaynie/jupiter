@@ -1,4 +1,4 @@
-package config
+package jupiter
 
 import (
 	"encoding/json"
@@ -198,8 +198,8 @@ func (c *Config) Close() error {
 	return nil
 }
 
-// New will load a config from the reader and return it
-func New(r io.Reader) (*Config, error) {
+// NewConfig will load a config from the reader and return it
+func NewConfig(r io.Reader) (*Config, error) {
 	dec := json.NewDecoder(r)
 	config := &Config{}
 	if err := dec.Decode(config); err != nil {

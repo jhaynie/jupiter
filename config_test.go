@@ -1,4 +1,4 @@
-package config
+package jupiter
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func TestBasicConfig(t *testing.T) {
 		}
 	}
 }`))
-	config, err := New(r)
+	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)
@@ -102,7 +102,7 @@ func TestMultipleWorkerConfig(t *testing.T) {
 		}
 	}
 }`))
-	config, err := New(r)
+	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)
@@ -195,7 +195,7 @@ func TestJobWorkerConfig(t *testing.T) {
 		}
 	}
 }`))
-	config, err := New(r)
+	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.URL)

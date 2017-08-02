@@ -28,14 +28,13 @@ import (
 	"io"
 	"ioutil"
 
-	"github.com/jhaynie/jupiter/pkg/types"
-	"github.com/jhaynie/jupiter/pkg/work"
+	"github.com/jhaynie/jupiter"
 )
 
 type myJob struct {
 }
 
-func (j *myJob) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
 	defer done(nil)
 	buf, err := ioutil.ReadAll(in)
 	if err != nil {
@@ -46,7 +45,7 @@ func (j *myJob) Work(in io.Reader, out io.Writer, done types.Done) error {
 }
 
 func init() {
-	work.Register("myjob", &myJob{})
+	jupiter.Register("myjob", &myJob{})
 }
 ```
 
@@ -85,12 +84,12 @@ This configuration will setup 1 exchange named `main` and one queue bound to the
 Now we need to create a Work Manager to manager the work.  First we need to create our configuration using our preferred `io.Reader` interface to pass in the configuration.  Then, we going to pass the configuration into `work.New` to create a new Work Manager.  For testing, we are going to just publish a message using the key `echo`. However, note that our configuration above used `#` which is a wildcard topic and will match any message name.
 
 ```golang
-config, err := config.New(r)
+config, err := jupiter.NewConfig(r)
 if err != nil {
 	return err
 }
 defer config.Close()
-mgr, err := work.New(config)
+mgr, err := jupiter.NewManager(config)
 if err != nil {
 	return err
 }
@@ -119,7 +118,7 @@ For example, to publish the response message `myresult`, you would change to:
 And then in our worker body we might:
 
 ```golang
-func (j *myJob) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
 	defer done(nil)
 	_, err := ioutil.ReadAll(in)
 	if err != nil {
@@ -133,7 +132,7 @@ func (j *myJob) Work(in io.Reader, out io.Writer, done types.Done) error {
 To create an asynchronous job, you can use the `done` argument to signal when you're completed.  For example, this job will wait 1 second and then respond:
 
 ```golang
-func (j *myJob) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
 	go func() {
 		time.Sleep(time.Second)
 		_, err := out.Write([]byte("{success:true}"))

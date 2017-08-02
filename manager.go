@@ -1,22 +1,20 @@
-package work
+package jupiter
 
 import (
 	"bytes"
 	"fmt"
 	"log"
 
-	"github.com/jhaynie/jupiter/pkg/config"
-	"github.com/jhaynie/jupiter/pkg/types"
 	"github.com/streadway/amqp"
 )
 
 type jobRouter struct {
-	config      *config.Config
-	queue       *config.Queue
+	config      *Config
+	queue       *Queue
 	consumerTag string
 	publish     string
 	ch          <-chan amqp.Delivery
-	worker      types.Worker
+	worker      Worker
 }
 
 func (r *jobRouter) close() {
@@ -56,15 +54,15 @@ func (r *jobRouter) run() {
 
 // WorkerManager is an implementation of a Manager
 type WorkerManager struct {
-	workers map[string]types.Worker
-	config  *config.Config
+	workers map[string]Worker
+	config  *Config
 	routers map[string]*jobRouter
 }
 
-// New will return a new WorkerManager based on Config
-func New(config *config.Config) (*WorkerManager, error) {
+// NewManager will return a new WorkerManager based on Config
+func NewManager(config *Config) (*WorkerManager, error) {
 	manager := &WorkerManager{
-		workers: make(map[string]types.Worker),
+		workers: make(map[string]Worker),
 		config:  config,
 		routers: make(map[string]*jobRouter),
 	}
@@ -109,7 +107,7 @@ func (m *WorkerManager) Close() {
 }
 
 // Register will register a worker by name
-func (m *WorkerManager) Register(name string, worker types.Worker) error {
+func (m *WorkerManager) Register(name string, worker Worker) error {
 	if m.workers[name] != nil {
 		return fmt.Errorf("worker named `%s` already registered", name)
 	}

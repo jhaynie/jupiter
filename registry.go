@@ -1,22 +1,20 @@
-package work
+package jupiter
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
-
-	"github.com/jhaynie/jupiter/pkg/types"
 )
 
 var (
-	registry = make(map[string]types.Worker)
+	registry = make(map[string]Worker)
 )
 
 type echoWorker struct {
 }
 
 // Work will simply echo back out the json it receives
-func (w *echoWorker) Work(in io.Reader, out io.Writer, done types.Done) error {
+func (w *echoWorker) Work(in io.Reader, out io.Writer, done Done) error {
 	defer done(nil)
 	dec := json.NewDecoder(in)
 	var buf json.RawMessage
@@ -34,7 +32,7 @@ func init() {
 // Register is called to register a Worker by name. This is not thread safe and generally
 // should be called from the init function on startup. Only one worker can be registered
 // for a given name
-func Register(name string, worker types.Worker) error {
+func Register(name string, worker Worker) error {
 	if registry[name] != nil {
 		return fmt.Errorf("worker named `%s` already registered", name)
 	}
