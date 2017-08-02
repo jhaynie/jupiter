@@ -17,7 +17,7 @@ type echoBack struct {
 	wg  sync.WaitGroup
 }
 
-func (e *echoBack) Work(in io.Reader, out io.Writer, done Done) error {
+func (e *echoBack) Work(msg WorkMessage, in io.Reader, out io.Writer, done Done) error {
 	defer done(nil)
 	buf, err := ioutil.ReadAll(in)
 	e.buf = buf
@@ -30,7 +30,7 @@ type echoBackAsync struct {
 	wg  sync.WaitGroup
 }
 
-func (e *echoBackAsync) Work(in io.Reader, out io.Writer, done Done) error {
+func (e *echoBackAsync) Work(msg WorkMessage, in io.Reader, out io.Writer, done Done) error {
 	go func() {
 		time.Sleep(time.Second)
 		buf, err := ioutil.ReadAll(in)

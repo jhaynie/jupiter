@@ -14,7 +14,7 @@ type echoWorker struct {
 }
 
 // Work will simply echo back out the json it receives
-func (w *echoWorker) Work(in io.Reader, out io.Writer, done Done) error {
+func (w *echoWorker) Work(message WorkMessage, in io.Reader, out io.Writer, done Done) error {
 	defer done(nil)
 	dec := json.NewDecoder(in)
 	var buf json.RawMessage

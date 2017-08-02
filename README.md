@@ -34,7 +34,7 @@ import (
 type myJob struct {
 }
 
-func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
 	defer done(nil)
 	buf, err := ioutil.ReadAll(in)
 	if err != nil {
@@ -118,7 +118,7 @@ For example, to publish the response message `myresult`, you would change to:
 And then in our worker body we might:
 
 ```golang
-func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
 	defer done(nil)
 	_, err := ioutil.ReadAll(in)
 	if err != nil {
@@ -132,7 +132,7 @@ func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
 To create an asynchronous job, you can use the `done` argument to signal when you're completed.  For example, this job will wait 1 second and then respond:
 
 ```golang
-func (j *myJob) Work(in io.Reader, out io.Writer, done jupiter.Done) error {
+func (j *myJob) Work(msg jupiter.WorkMessage, in io.Reader, out io.Writer, done jupiter.Done) error {
 	go func() {
 		time.Sleep(time.Second)
 		_, err := out.Write([]byte("{success:true}"))

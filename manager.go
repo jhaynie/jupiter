@@ -35,8 +35,9 @@ func (r *jobRouter) run() {
 			}
 			if r.publish != "" && out.Len() > 0 {
 				outmsg := amqp.Publishing{
-					Type: r.publish,
-					Body: out.Bytes(),
+					Type:          r.publish,
+					Body:          out.Bytes(),
+					CorrelationId: msg.MessageId,
 				}
 				if err := r.config.Publish(r.publish, outmsg); err != nil {
 					log.Println("error sending message", err)
@@ -45,7 +46,7 @@ func (r *jobRouter) run() {
 			}
 		}
 		in := bytes.NewReader(msg.Body)
-		if err := r.worker.Work(in, &out, done); err != nil {
+		if err := r.worker.Work(WorkMessage{msg.Type, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding}, in, &out, done); err != nil {
 			log.Println("error processing work", err)
 			return
 		}

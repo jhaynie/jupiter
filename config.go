@@ -30,6 +30,9 @@ type Exchange struct {
 
 // Publish will publish to the exchange
 func (e *Exchange) Publish(key string, msg amqp.Publishing) error {
+	if msg.MessageId == "" {
+		msg.MessageId = randString(64)
+	}
 	return e.ch.Publish(e.name, key, false, false, msg)
 }
 
