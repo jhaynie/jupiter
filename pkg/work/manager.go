@@ -28,22 +28,28 @@ func (r *jobRouter) close() {
 
 func (r *jobRouter) run() {
 	for msg := range r.ch {
-		defer msg.Ack(false)
-		in := bytes.NewReader(msg.Body)
 		var out bytes.Buffer
-		if err := r.worker.Work(in, &out); err != nil {
-			log.Println("error processing work", err)
-			return
-		}
-		if r.publish != "" && out.Len() > 0 {
-			outmsg := amqp.Publishing{
-				Type: r.publish,
-				Body: out.Bytes(),
-			}
-			if err := r.config.Publish(r.publish, outmsg); err != nil {
-				log.Println("error sending message", err)
+		done := func(err error) {
+			defer msg.Ack(false)
+			if err != nil {
+				log.Println("error processing work", err)
 				return
 			}
+			if r.publish != "" && out.Len() > 0 {
+				outmsg := amqp.Publishing{
+					Type: r.publish,
+					Body: out.Bytes(),
+				}
+				if err := r.config.Publish(r.publish, outmsg); err != nil {
+					log.Println("error sending message", err)
+					return
+				}
+			}
+		}
+		in := bytes.NewReader(msg.Body)
+		if err := r.worker.Work(in, &out, done); err != nil {
+			log.Println("error processing work", err)
+			return
 		}
 	}
 }
