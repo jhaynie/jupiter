@@ -8,6 +8,7 @@ jobs:
       # specify the version
       - image: circleci/golang:1.8
       - image: rabbitmq:3.6.7
+      - image: redis
 
     working_directory: /go/src/github.com/jhaynie/jupiter
     steps:
@@ -25,4 +26,14 @@ jobs:
               sleep 1
             done
             echo Failed waiting for RabbitMQ && exit 1
+      - run:
+          name: Waiting for Redis to be ready
+          command: |
+            for i in `seq 1 60`;
+            do
+              nc -z localhost 6379 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for Redis && exit 1
       - run: go test -v ./...
