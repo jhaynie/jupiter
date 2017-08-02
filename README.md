@@ -1,4 +1,4 @@
-# Jupiter
+# Jupiter [![CircleCI](https://circleci.com/gh/jhaynie/jupiter/tree/master.svg?style=svg)](https://circleci.com/gh/jhaynie/jupiter/tree/master)
 
 Jupiter is a very simplistic, queue-based job worker framework.
 
