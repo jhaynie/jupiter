@@ -20,6 +20,7 @@ type WorkMessage struct {
 	reader      io.Reader
 	redisWriter io.Writer
 	mqWriter    io.Writer
+	job         *Job
 }
 
 // Reader returns an io.Reader for reading a work message body
@@ -40,6 +41,12 @@ func (m *WorkMessage) MQWriter() io.Writer {
 // Writer will return a combined writer that will write the same message to both RabbitMQ and Redis writers
 func (m *WorkMessage) Writer() io.Writer {
 	return io.MultiWriter(m.redisWriter, m.mqWriter)
+}
+
+// ResultKey will return the unique result key which will be stored in the `AppId` of the MQ or be used as
+// the key when storing the result in Redis
+func (m *WorkMessage) ResultKey() string {
+	return "jupiter." + m.MessageID + "." + hashStrings(m.job.Name()) + ".result"
 }
 
 // Worker is an interface that workers implement to handle work

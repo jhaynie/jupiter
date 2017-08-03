@@ -2,6 +2,7 @@ package jupiter
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 
 func TestBasicConfig(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
 		"pinpt.exchange.main": {
 			"type": "topic",
@@ -33,7 +34,7 @@ func TestBasicConfig(t *testing.T) {
 		"pinpt.github.commit": {
 			"autodelete": true,
 			"exchange": "pinpt.exchange.github",
-			"routing": "github.#",
+			"routing": "github.commit",
 			"durable": false
 		},
 		"myqueue": {
@@ -44,7 +45,7 @@ func TestBasicConfig(t *testing.T) {
 			"durable": false
 		}
 	}
-}`))
+}`)
 	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)

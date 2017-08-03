@@ -39,6 +39,8 @@ func hashStrings(objects ...string) string {
 func (r *jobRouter) run() {
 	for msg := range r.ch {
 		var mqout, redisout bytes.Buffer
+		in := bytes.NewReader(msg.Body)
+		work := WorkMessage{r.config, msg.Type, msg.AppId, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding, in, &mqout, &redisout, r.job}
 		done := func(err error) {
 			defer msg.Ack(false)
 			if err != nil {
@@ -51,7 +53,7 @@ func (r *jobRouter) run() {
 					log.Printf("error parsing job expiration `%s`. %v\n", r.job.Expiration, err)
 					return
 				}
-				key := "jupiter." + msg.MessageId + "." + hashStrings(r.job.Name()) + ".result"
+				key := work.ResultKey()
 				if mqout.Len() > 0 && r.job.DestinationMQ() {
 					outmsg := amqp.Publishing{
 						Type:          r.publish,
@@ -73,8 +75,7 @@ func (r *jobRouter) run() {
 				}
 			}
 		}
-		in := bytes.NewReader(msg.Body)
-		if err := r.worker.Work(WorkMessage{r.config, msg.Type, msg.AppId, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding, in, &mqout, &redisout}, done); err != nil {
+		if err := r.worker.Work(work, done); err != nil {
 			log.Println("error processing work", err)
 			return
 		}
