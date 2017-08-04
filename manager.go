@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -99,6 +100,13 @@ func NewManager(config *Config) (*WorkerManager, error) {
 	if err := autoregister(manager); err != nil {
 		return nil, err
 	}
+	var count int
+	if config.Channel.PrefetchCount == nil || *config.Channel.PrefetchCount == 0 {
+		// if not set, match the number of CPU
+		count = runtime.NumCPU()
+	} else {
+		count = *config.Channel.PrefetchCount
+	}
 	for name, job := range config.Jobs {
 		q := config.Queues[job.Queue]
 		if q == nil {
@@ -125,7 +133,11 @@ func NewManager(config *Config) (*WorkerManager, error) {
 			publish:     job.Publish,
 		}
 		manager.routers[name] = j
-		go j.run()
+		// run N number of goroutines that match the pre-fetch count so that
+		// we will process at the same concurrency as pre-fetch
+		for i := 0; i < count; i++ {
+			go j.run()
+		}
 	}
 	return manager, nil
 }

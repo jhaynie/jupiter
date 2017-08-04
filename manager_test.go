@@ -1,8 +1,8 @@
 package jupiter
 
 import (
-	"bytes"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -55,9 +55,9 @@ func (e *echoBackRedis) Work(msg WorkMessage, done Done) error {
 
 func TestJobWorker(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
@@ -68,7 +68,7 @@ func TestJobWorker(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		},
@@ -78,7 +78,7 @@ func TestJobWorker(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
@@ -108,7 +108,7 @@ func TestJobWorker(t *testing.T) {
 			"queue": "echoresult"
 		}
 	}
-}`))
+}`)
 	echo := &echoBack{wg: sync.WaitGroup{}}
 	echo.wg.Add(1)
 	Register("echoresult", echo)
@@ -135,9 +135,9 @@ func TestJobWorker(t *testing.T) {
 
 func TestAsyncJobWorker(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
@@ -148,7 +148,7 @@ func TestAsyncJobWorker(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		},
@@ -158,7 +158,7 @@ func TestAsyncJobWorker(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
@@ -188,7 +188,7 @@ func TestAsyncJobWorker(t *testing.T) {
 			"queue": "echoresult"
 		}
 	}
-}`))
+}`)
 	echo := &echoBackAsync{wg: sync.WaitGroup{}}
 	echo.wg.Add(1)
 	Register("echoresult", echo)
@@ -215,9 +215,9 @@ func TestAsyncJobWorker(t *testing.T) {
 
 func TestJobResultRedis(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
@@ -228,7 +228,7 @@ func TestJobResultRedis(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		},
@@ -238,7 +238,7 @@ func TestJobResultRedis(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
@@ -269,7 +269,7 @@ func TestJobResultRedis(t *testing.T) {
 			"queue": "echoresult"
 		}
 	}
-}`))
+}`)
 	echo := &echoBackRedis{wg: sync.WaitGroup{}}
 	echo.wg.Add(1)
 	Register("echoresult", echo)

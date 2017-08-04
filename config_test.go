@@ -1,7 +1,6 @@
 package jupiter
 
 import (
-	"bytes"
 	"strings"
 	"sync"
 	"testing"
@@ -14,33 +13,33 @@ func TestBasicConfig(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"pinpt.exchange.github": {
+		"pinpt.exchange.test.github": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "github.#",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
 	},
 	"queues": {
-		"pinpt.github.commit": {
+		"pinpt.github.test.commit": {
 			"autodelete": true,
-			"exchange": "pinpt.exchange.github",
+			"exchange": "pinpt.exchange.test.github",
 			"routing": "github.commit",
 			"durable": false
 		},
 		"myqueue": {
 			"autodelete": true,
 			"private": true,
-			"exchange": "pinpt.exchange.github",
+			"exchange": "pinpt.exchange.test.github",
 			"routing": "#",
 			"durable": false
 		}
@@ -64,46 +63,46 @@ func TestBasicConfig(t *testing.T) {
 	assert.NotNil(msg)
 	assert.Equal("hello", string(msg.Body))
 	assert.Nil(config.Queues["myqueue"].Cancel(name))
-	name, ch, err = config.Queues["pinpt.github.commit"].Consume(true, true, false)
+	name, ch, err = config.Queues["pinpt.github.test.commit"].Consume(true, true, false)
 	assert.Nil(err)
 	assert.NotEmpty(name)
 	assert.NotNil(ch)
 	msg = <-ch
 	assert.NotNil(msg)
 	assert.Equal("hello", string(msg.Body))
-	assert.Nil(config.Queues["pinpt.github.commit"].Cancel(name))
+	assert.Nil(config.Queues["pinpt.github.test.commit"].Cancel(name))
 	assert.Nil(config.Close())
 }
 
 func TestMultipleWorkerConfig(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"pinpt.exchange.github": {
+		"pinpt.exchange.test.github": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "github.#",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
 	},
 	"queues": {
-		"pinpt.github.commit": {
+		"pinpt.github.test.commit": {
 			"autodelete": true,
-			"exchange": "pinpt.exchange.github",
+			"exchange": "pinpt.exchange.test.github",
 			"routing": "github.#",
 			"durable": false
 		}
 	}
-}`))
+}`)
 	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
@@ -111,11 +110,11 @@ func TestMultipleWorkerConfig(t *testing.T) {
 	assert.Equal("localhost:6379", config.RedisURL)
 	assert.Nil(config.Connect())
 	defer config.Close()
-	name1, ch1, err := config.Queues["pinpt.github.commit"].Consume(true, false, false)
+	name1, ch1, err := config.Queues["pinpt.github.test.commit"].Consume(true, false, false)
 	assert.Nil(err)
 	assert.NotEmpty(name1)
 	assert.NotNil(ch1)
-	name2, ch2, err := config.Queues["pinpt.github.commit"].Consume(true, false, false)
+	name2, ch2, err := config.Queues["pinpt.github.test.commit"].Consume(true, false, false)
 	assert.Nil(err)
 	assert.NotEmpty(name2)
 	assert.NotNil(ch2)
@@ -137,16 +136,16 @@ func TestMultipleWorkerConfig(t *testing.T) {
 		Body: []byte("hello"),
 	}))
 	wg.Wait()
-	assert.Nil(config.Queues["pinpt.github.commit"].Cancel(name1))
-	assert.Nil(config.Queues["pinpt.github.commit"].Cancel(name2))
+	assert.Nil(config.Queues["pinpt.github.test.commit"].Cancel(name1))
+	assert.Nil(config.Queues["pinpt.github.test.commit"].Cancel(name2))
 	assert.Nil(config.Close())
 }
 
 func TestJobWorkerConfig(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
@@ -157,7 +156,7 @@ func TestJobWorkerConfig(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		},
@@ -167,7 +166,7 @@ func TestJobWorkerConfig(t *testing.T) {
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
@@ -197,7 +196,7 @@ func TestJobWorkerConfig(t *testing.T) {
 			"queue": "echoresult"
 		}
 	}
-}`))
+}`)
 	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
@@ -223,43 +222,43 @@ func TestJobWorkerConfig(t *testing.T) {
 
 func TestConfigWithQoS(t *testing.T) {
 	assert := assert.New(t)
-	r := bytes.NewBuffer([]byte(`{
+	r := strings.NewReader(`{
 	"channel": {
 		"prefetch_count": 1
 	},
 	"exchanges": {
-		"pinpt.exchange.main": {
+		"pinpt.exchange.test.main": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"pinpt.exchange.github": {
+		"pinpt.exchange.test.github": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "github.#",
-					"exchange": "pinpt.exchange.main"
+					"exchange": "pinpt.exchange.test.main"
 				}
 			]
 		}
 	},
 	"queues": {
-		"pinpt.github.commit": {
+		"pinpt.github.test.commit": {
 			"autodelete": true,
-			"exchange": "pinpt.exchange.github",
+			"exchange": "pinpt.exchange.test.github",
 			"routing": "github.#",
 			"durable": false
 		},
 		"myqueue": {
 			"autodelete": true,
 			"private": true,
-			"exchange": "pinpt.exchange.github",
+			"exchange": "pinpt.exchange.test.github",
 			"routing": "#",
 			"durable": false
 		}
 	}
-}`))
+}`)
 	config, err := NewConfig(r)
 	assert.Nil(err)
 	assert.NotNil(config)
@@ -281,13 +280,13 @@ func TestConfigWithQoS(t *testing.T) {
 	assert.NotNil(msg)
 	assert.Equal("hello", string(msg.Body))
 	assert.Nil(config.Queues["myqueue"].Cancel(name))
-	name, ch, err = config.Queues["pinpt.github.commit"].Consume(true, true, false)
+	name, ch, err = config.Queues["pinpt.github.test.commit"].Consume(true, true, false)
 	assert.Nil(err)
 	assert.NotEmpty(name)
 	assert.NotNil(ch)
 	msg = <-ch
 	assert.NotNil(msg)
 	assert.Equal("hello", string(msg.Body))
-	assert.Nil(config.Queues["pinpt.github.commit"].Cancel(name))
+	assert.Nil(config.Queues["pinpt.github.test.commit"].Cancel(name))
 	assert.Nil(config.Close())
 }
