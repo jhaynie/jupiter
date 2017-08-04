@@ -49,6 +49,7 @@ type Job struct {
 	Worker      string
 	Destination string
 	Expiration  string `json:"expires"`
+	Concurrency int
 
 	name string
 }
@@ -147,10 +148,16 @@ type Config struct {
 	Queues    map[string]*Queue
 	Jobs      map[string]*Job
 
-	conn     *amqp.Connection
-	ch       *amqp.Channel
-	exchange *Exchange
-	client   *redis.Client
+	conn      *amqp.Connection
+	ch        *amqp.Channel
+	exchange  *Exchange
+	client    *redis.Client
+	connected bool
+}
+
+// IsConnected returns true if you've called Connect and not Close
+func (c *Config) IsConnected() bool {
+	return c.connected
 }
 
 // RedisClient will return the redis client instance
@@ -160,6 +167,9 @@ func (c *Config) RedisClient() *redis.Client {
 
 // Publish will publish a message to the default queue
 func (c *Config) Publish(key string, msg amqp.Publishing) error {
+	if c.exchange == nil {
+		return fmt.Errorf("no default exchange found")
+	}
 	return c.exchange.Publish(key, msg)
 }
 
@@ -246,6 +256,8 @@ func (c *Config) Connect() error {
 		job.name = name
 	}
 
+	c.connected = true
+
 	return nil
 }
 
@@ -263,6 +275,7 @@ func (c *Config) Close() error {
 		}
 		c.conn = nil
 	}
+	c.connected = false
 	return nil
 }
 

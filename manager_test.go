@@ -293,3 +293,17 @@ func TestJobResultRedis(t *testing.T) {
 	mgr.Close()
 	assert.Nil(config.Close())
 }
+
+func TestAutoConnect(t *testing.T) {
+	assert := assert.New(t)
+	r := strings.NewReader(`{}`)
+	config, err := NewConfig(r)
+	assert.Nil(err)
+	assert.False(config.IsConnected())
+	mgr, err := NewManager(config)
+	assert.Nil(err)
+	assert.NotNil(mgr)
+	assert.True(config.IsConnected())
+	mgr.Close()
+	assert.False(config.IsConnected())
+}

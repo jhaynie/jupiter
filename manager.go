@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"runtime"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -85,9 +84,10 @@ func (r *jobRouter) run() {
 
 // WorkerManager is an implementation of a Manager
 type WorkerManager struct {
-	workers map[string]Worker
-	config  *Config
-	routers map[string]*jobRouter
+	workers   map[string]Worker
+	config    *Config
+	routers   map[string]*jobRouter
+	autoclose bool
 }
 
 // NewManager will return a new WorkerManager based on Config
@@ -97,15 +97,21 @@ func NewManager(config *Config) (*WorkerManager, error) {
 		config:  config,
 		routers: make(map[string]*jobRouter),
 	}
+	if !config.IsConnected() {
+		if err := config.Connect(); err != nil {
+			return nil, err
+		}
+		// if we open, we should also be responsible to close it
+		manager.autoclose = true
+	}
 	if err := autoregister(manager); err != nil {
 		return nil, err
 	}
-	var count int
+	var defaultCount int
 	if config.Channel.PrefetchCount == nil || *config.Channel.PrefetchCount == 0 {
-		// if not set, match the number of CPU
-		count = runtime.NumCPU()
+		defaultCount = 1
 	} else {
-		count = *config.Channel.PrefetchCount
+		defaultCount = *config.Channel.PrefetchCount
 	}
 	for name, job := range config.Jobs {
 		q := config.Queues[job.Queue]
@@ -133,6 +139,10 @@ func NewManager(config *Config) (*WorkerManager, error) {
 			publish:     job.Publish,
 		}
 		manager.routers[name] = j
+		count := job.Concurrency
+		if count == 0 {
+			count = defaultCount
+		}
 		// run N number of goroutines that match the pre-fetch count so that
 		// we will process at the same concurrency as pre-fetch
 		for i := 0; i < count; i++ {
@@ -146,6 +156,9 @@ func NewManager(config *Config) (*WorkerManager, error) {
 func (m *WorkerManager) Close() {
 	for _, job := range m.routers {
 		job.close()
+	}
+	if m.autoclose {
+		m.config.Close()
 	}
 }
 
