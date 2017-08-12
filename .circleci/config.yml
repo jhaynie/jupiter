@@ -36,4 +36,4 @@ jobs:
               sleep 1
             done
             echo Failed waiting for Redis && exit 1
-      - run: go test -v ./...
+      - run: go test -v ./... -race

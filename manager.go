@@ -41,8 +41,9 @@ func (r *jobRouter) run() {
 		var mqout, redisout bytes.Buffer
 		in := bytes.NewReader(msg.Body)
 		work := WorkMessage{r.config, msg.Type, msg.AppId, msg.MessageId, msg.CorrelationId, msg.ContentType, msg.ContentEncoding, in, &mqout, &redisout, r.job}
+		ackChan := make(chan bool)
 		done := func(err error) {
-			defer msg.Ack(false)
+			defer func() { ackChan <- true }()
 			if err != nil {
 				log.Println("error processing work", err)
 				return
@@ -78,6 +79,12 @@ func (r *jobRouter) run() {
 		if err := r.worker.Work(work, done); err != nil {
 			log.Println("error processing work", err)
 			return
+		}
+		// wait to receive our ack on our channel and ack on
+		// the same goroutine that received the message
+		select {
+		case <-ackChan:
+			msg.Ack(false)
 		}
 	}
 }

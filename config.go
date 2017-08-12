@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -153,11 +155,15 @@ type Config struct {
 	exchange  *Exchange
 	client    *redis.Client
 	connected bool
+	mu        sync.RWMutex
 }
 
 // IsConnected returns true if you've called Connect and not Close
 func (c *Config) IsConnected() bool {
-	return c.connected
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+	return connected
 }
 
 // RedisClient will return the redis client instance
@@ -167,10 +173,14 @@ func (c *Config) RedisClient() *redis.Client {
 
 // Publish will publish a message to the default queue
 func (c *Config) Publish(key string, msg amqp.Publishing) error {
+	c.mu.RLock()
 	if c.exchange == nil {
+		c.mu.RUnlock()
 		return fmt.Errorf("no default exchange found")
 	}
-	return c.exchange.Publish(key, msg)
+	err := c.exchange.Publish(key, msg)
+	c.mu.RUnlock()
+	return err
 }
 
 // Connect will connect to the MQ server and wire up all the resources based on the config
@@ -185,8 +195,59 @@ func (c *Config) Connect() error {
 		return fmt.Errorf("Error creating channel to %s. %v", c.MQURL, err)
 	}
 
+	count := 1
+	size := 0
+
 	c.conn = conn
 	c.ch = ch
+
+	// run a go routine to monitor channel errors and attempt to reconnect
+	go func(conn *amqp.Connection) {
+		var err error
+		for {
+			// blocks for the channel to be closed and we
+			// need to check to see if this was closed unexpectedly
+			// or if we closed it on purpose
+			<-conn.NotifyClose(make(chan *amqp.Error))
+			c.mu.Lock()
+			// only attempt to reconnect when we're not closing on purpose
+			if c.connected {
+				conn, err = amqp.Dial(c.MQURL)
+				if err != nil {
+					c.connected = false
+					c.conn = nil
+					c.ch = nil
+					c.mu.Unlock()
+					fmt.Fprintln(os.Stderr, "Couldn't reconnect to MQ server. ", err)
+					return
+				}
+				ch, err := conn.Channel()
+				if err != nil {
+					c.connected = false
+					c.conn.Close()
+					c.conn = nil
+					c.ch = nil
+					c.mu.Unlock()
+					fmt.Fprintln(os.Stderr, "Couldn't reconnect to MQ server and obtain channel. ", err)
+					return
+				}
+				c.conn = conn
+				c.ch = ch
+				ch.Qos(count, size, false)
+				// re-establish our connections
+				for _, ex := range c.Exchanges {
+					ex.ch = ch
+				}
+				for _, queue := range c.Queues {
+					queue.ch = ch
+				}
+				c.mu.Unlock()
+			} else {
+				c.mu.Unlock()
+				break
+			}
+		}
+	}(conn)
 
 	c.client = redis.NewClient(&redis.Options{Addr: c.RedisURL})
 	if err := c.client.Ping().Err(); err != nil {
@@ -195,7 +256,6 @@ func (c *Config) Connect() error {
 
 	// set any channel prefetch configuration
 	if c.Channel.PrefetchCount != nil || c.Channel.PrefetchSize != nil {
-		var count, size int
 		if c.Channel.PrefetchSize != nil {
 			size = *c.Channel.PrefetchSize
 		}
@@ -263,19 +323,36 @@ func (c *Config) Connect() error {
 
 // Close the configuration and release any opened resources
 func (c *Config) Close() error {
-	if c.ch != nil {
-		if err := c.ch.Close(); err != nil {
-			return err
+	c.mu.Lock()
+	if c.connected {
+		c.connected = false
+		if c.ch != nil {
+			if err := c.ch.Close(); err != nil {
+				exit := true
+				if e, ok := err.(*amqp.Error); ok {
+					// 504 is when we're already closed
+					if e.Code == 504 {
+						exit = false
+					}
+				}
+				if exit {
+					c.mu.Unlock()
+					c.ch = nil
+					return err
+				}
+			}
+			c.ch = nil
 		}
-		c.ch = nil
-	}
-	if c.conn != nil {
-		if err := c.conn.Close(); err != nil {
-			return err
+		if c.conn != nil {
+			if err := c.conn.Close(); err != nil {
+				c.mu.Unlock()
+				c.conn = nil
+				return err
+			}
+			c.conn = nil
 		}
-		c.conn = nil
 	}
-	c.connected = false
+	c.mu.Unlock()
 	return nil
 }
 
@@ -292,5 +369,6 @@ func NewConfig(r io.Reader) (*Config, error) {
 	if config.RedisURL == "" {
 		config.RedisURL = "localhost:6379"
 	}
+	config.mu = sync.RWMutex{}
 	return config, nil
 }
