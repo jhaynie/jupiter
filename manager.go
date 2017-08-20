@@ -117,6 +117,7 @@ func NewManager(config *Config) (*WorkerManager, error) {
 		if worker == nil {
 			return nil, fmt.Errorf("error creating job named `%s`. worker named `%s` not found", name, job.Worker)
 		}
+		q.name = name
 		q.config = config
 		q.session = config.Exchanges[q.Exchange].session
 		count := job.Concurrency
@@ -138,7 +139,7 @@ func NewManager(config *Config) (*WorkerManager, error) {
 			manager.routers = append(manager.routers, j)
 			go j.run()
 		}
-		q.session.StartConsumer(q.Exchange, q.Name(), q.Routing)
+		q.session.StartConsumer(q.Exchange, name, q.Routing)
 	}
 	return manager, nil
 }

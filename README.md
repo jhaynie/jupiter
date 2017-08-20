@@ -115,7 +115,7 @@ if err != nil {
 	return err
 }
 defer mgr.Close()
-config.Publish([]byte(`{"hi":"heya"}`), jupiter.WithType("echo"))
+config.PublishJSONString("echo", `{"hi":"heya"}`)
 ```
 
 If it works, you should see `{"hi":"heya"}` in the console (based on our `fmt.Println` in our job code above).
