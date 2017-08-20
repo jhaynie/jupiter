@@ -190,8 +190,10 @@ func (c *Config) Close() error {
 // Setup will use the channel to setup the Exchanges and Queues
 func (c *Config) Setup(ctx context.Context) error {
 	// create all our exchanges
+	exchanges := make(map[string]bool)
 	for name, ex := range c.Exchanges {
 		ex.name = name
+		exchanges[name] = true
 		setup := func(conn *amqp.Connection, ch *amqp.Channel) error {
 			count := 1
 			size := 0
@@ -210,6 +212,15 @@ func (c *Config) Setup(ctx context.Context) error {
 			// now bind the exchanges
 			if len(ex.Bindings) > 0 {
 				for _, binding := range ex.Bindings {
+					if !exchanges[binding.Exchange] {
+						// we need to make sure that the exchange is declared if not already declared
+						other := c.Exchanges[binding.Exchange]
+						// fmt.Printf("declaring %s for %s\n", binding.Exchange, name)
+						if err := ch.ExchangeDeclare(binding.Exchange, other.Type, other.Durable, other.Autodelete, false, false, nil); err != nil {
+							return fmt.Errorf("error declaring exchange named `%s`. %v", binding.Exchange, err)
+						}
+						exchanges[binding.Exchange] = true
+					}
 					// fmt.Printf("binding %s -> %s via %s\n", binding.Exchange, name, binding.Routing)
 					if err := ch.ExchangeBind(name, binding.Routing, binding.Exchange, false, nil); err != nil {
 						return fmt.Errorf("error binding exchange named `%s` to `%s`. %v", name, binding.Exchange, err)

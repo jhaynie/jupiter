@@ -90,28 +90,28 @@ func TestJobWorker(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main1": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo1": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main1"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult1": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main1"
 				}
 			]
 		}
@@ -119,13 +119,13 @@ func TestJobWorker(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo1",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
 			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult1",
 			"routing": "#",
 			"durable": false
 		}
@@ -167,28 +167,28 @@ func TestAsyncJobWorker(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main2": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo2": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main2"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult2": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main2"
 				}
 			]
 		}
@@ -196,13 +196,13 @@ func TestAsyncJobWorker(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo2",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
  			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult2",
 			"routing": "#",
 			"durable": false
 		}
@@ -244,28 +244,28 @@ func TestJobResultRedis(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main3": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo3": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main3"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult3": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main3"
 				}
 			]
 		}
@@ -273,13 +273,13 @@ func TestJobResultRedis(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo3",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
 			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult3",
 			"routing": "#",
 			"durable": false
 		}
@@ -322,28 +322,28 @@ func TestAutoReconnect(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main4": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo4": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main4"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult4": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main4"
 				}
 			]
 		}
@@ -351,13 +351,13 @@ func TestAutoReconnect(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo4",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
  			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult4",
 			"routing": "#",
 			"durable": false
 		}
@@ -399,28 +399,28 @@ func TestAsyncJobWorkerMulti(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main5": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo5": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main5"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult5": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main5"
 				}
 			]
 		}
@@ -428,13 +428,13 @@ func TestAsyncJobWorkerMulti(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo5",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
  			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult5",
 			"routing": "#",
 			"durable": false
 		}
@@ -484,28 +484,28 @@ func TestErrorChannel(t *testing.T) {
 	assert := assert.New(t)
 	r := strings.NewReader(`{
 	"exchanges": {
-		"pinpt.exchange.test.main": {
+		"pinpt.exchange.test.main6": {
 			"type": "topic",
 			"autodelete": true,
 			"default": true
 		},
-		"echo": {
+		"echo6": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main6"
 				}
 			]
 		},
-		"echoresult": {
+		"echoresult6": {
 			"type": "topic",
 			"autodelete": true,
 			"bind": [
 				{
 					"routing": "echo.result",
-					"exchange": "pinpt.exchange.test.main"
+					"exchange": "pinpt.exchange.test.main6"
 				}
 			]
 		}
@@ -513,13 +513,13 @@ func TestErrorChannel(t *testing.T) {
 	"queues": {
 		"echo": {
 			"autodelete": true,
-			"exchange": "echo",
+			"exchange": "echo6",
 			"routing": "#",
 			"durable": false
 		},
 		"echoresult": {
  			"autodelete": true,
-			"exchange": "echoresult",
+			"exchange": "echoresult6",
 			"routing": "#",
 			"durable": false
 		}

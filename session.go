@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -29,13 +30,21 @@ func (m *Message) Reader() io.Reader {
 
 // SessionConnection composes an amqp.Connection with an amqp.Channel
 type SessionConnection struct {
+	ctx context.Context
 	*amqp.Connection
 	*amqp.Channel
 	consumerTag string
+	mu          sync.Mutex
+	closed      bool
 }
 
 // Close tears the connection down, taking the channel with it.
 func (s *SessionConnection) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
 	if s.consumerTag != "" {
 		s.Cancel(s.consumerTag, false)
 		s.consumerTag = ""
@@ -58,9 +67,22 @@ func (s *SessionConnection) Close() error {
 		if err := s.Connection.Close(); err != nil {
 			return err
 		}
+		err := <-s.Connection.NotifyClose(make(chan *amqp.Error))
+		if err != nil {
+			return err
+		}
 		s.Connection = nil
 	}
-	return nil
+	// wait for this ctx to be done before returning
+	for {
+		select {
+		case <-s.ctx.Done():
+			{
+				s.closed = true
+				return nil
+			}
+		}
+	}
 }
 
 // Setup is called to establish any initialization after connection is established
@@ -81,6 +103,14 @@ func (s Session) Close() {
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
+	}
+	for {
+		select {
+		case <-s.ctx.Done():
+			{
+				return
+			}
+		}
 	}
 }
 
@@ -127,8 +157,6 @@ func Dial(c context.Context, url string, setup Setup) *Session {
 			close(session.receiving)
 			close(session.sending)
 			close(sess)
-			session.receiving = nil
-			session.sending = nil
 			done()
 		}()
 		backoff := Backoff{}
@@ -171,7 +199,7 @@ func Dial(c context.Context, url string, setup Setup) *Session {
 			}
 
 			select {
-			case sess <- &SessionConnection{conn, ch, ""}:
+			case sess <- &SessionConnection{ctx, conn, ch, "", sync.Mutex{}, false}:
 			case <-ctx.Done():
 				return
 			}
