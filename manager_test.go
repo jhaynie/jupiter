@@ -1,13 +1,13 @@
 package jupiter
 
 import (
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,13 +25,16 @@ func (e *echoBack) Work(msg WorkMessage, done Done) error {
 }
 
 type echoBackAsync struct {
-	buf []byte
-	wg  sync.WaitGroup
+	buf   []byte
+	wg    sync.WaitGroup
+	delay bool
 }
 
 func (e *echoBackAsync) Work(msg WorkMessage, done Done) error {
 	go func() {
-		time.Sleep(time.Second)
+		if e.delay {
+			time.Sleep(time.Second)
+		}
 		buf, err := ioutil.ReadAll(msg.Reader())
 		e.buf = buf
 		done(err)
@@ -51,8 +54,20 @@ func (e *echoBackAsyncError) Work(msg WorkMessage, done Done) error {
 		buf, err := ioutil.ReadAll(msg.Reader())
 		e.buf = buf
 		// should be an error
-		msg.Config.Publish("", amqp.Publishing{UserId: "123", DeliveryMode: 10})
+		msg.Config.Publish("abc", []byte(""), WithAppID("123"), WithDeliveryMode(10))
 		done(err)
+		e.wg.Done()
+	}()
+	return nil
+}
+
+type echoBackAsyncError2 struct {
+	wg sync.WaitGroup
+}
+
+func (e *echoBackAsyncError2) Work(msg WorkMessage, done Done) error {
+	go func() {
+		done(fmt.Errorf("error"))
 		e.wg.Done()
 	}()
 	return nil
@@ -136,15 +151,12 @@ func TestJobWorker(t *testing.T) {
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
 	assert.Equal("localhost:6379", config.RedisURL)
-	assert.Nil(config.Connect())
 	defer config.Close()
 	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()
-	config.Publish("echo", amqp.Publishing{
-		Body: []byte(`{"hi":"heya"}`),
-	})
+	assert.Nil(config.PublishJSON("echo", map[string]string{"hi": "heya"}))
 	echo.wg.Wait()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
 	mgr.Close()
@@ -207,7 +219,7 @@ func TestAsyncJobWorker(t *testing.T) {
 		}
 	}
 }`)
-	echo := &echoBackAsync{wg: sync.WaitGroup{}}
+	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: true}
 	echo.wg.Add(1)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
@@ -216,15 +228,12 @@ func TestAsyncJobWorker(t *testing.T) {
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
 	assert.Equal("localhost:6379", config.RedisURL)
-	assert.Nil(config.Connect())
 	defer config.Close()
 	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()
-	config.Publish("echo", amqp.Publishing{
-		Body: []byte(`{"hi":"heya"}`),
-	})
+	config.Publish("echo", []byte(`{"hi":"heya"}`))
 	echo.wg.Wait()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
 	mgr.Close()
@@ -297,33 +306,16 @@ func TestJobResultRedis(t *testing.T) {
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
 	assert.Equal("localhost:6379", config.RedisURL)
-	assert.Nil(config.Connect())
 	defer config.Close()
 	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()
-	config.Publish("echo", amqp.Publishing{
-		Body: []byte(`{"hi":"heya"}`),
-	})
+	config.Publish("echo", []byte(`{"hi":"heya"}`))
 	echo.wg.Wait()
 	assert.Equal(`{"hi":"heya"}`, echo.result)
 	mgr.Close()
 	assert.Nil(config.Close())
-}
-
-func TestAutoConnect(t *testing.T) {
-	assert := assert.New(t)
-	r := strings.NewReader(`{}`)
-	config, err := NewConfig(r)
-	assert.Nil(err)
-	assert.False(config.IsConnected())
-	mgr, err := NewManager(config)
-	assert.Nil(err)
-	assert.NotNil(mgr)
-	assert.True(config.IsConnected())
-	mgr.Close()
-	assert.False(config.IsConnected())
 }
 
 func TestAutoReconnect(t *testing.T) {
@@ -391,17 +383,178 @@ func TestAutoReconnect(t *testing.T) {
 	assert.NotNil(config)
 	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
 	assert.Equal("localhost:6379", config.RedisURL)
-	assert.Nil(config.Connect())
 	defer config.Close()
 	mgr, err := NewManager(config)
 	assert.Nil(err)
 	assert.NotNil(mgr)
 	defer mgr.Close()
-	config.Publish("echo", amqp.Publishing{
-		Body: []byte(`{"hi":"heya"}`),
-	})
+	config.Publish("echo", []byte(`{"hi":"heya"}`))
 	echo.wg.Wait()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
+	mgr.Close()
+	assert.Nil(config.Close())
+}
+
+func TestAsyncJobWorkerMulti(t *testing.T) {
+	assert := assert.New(t)
+	r := strings.NewReader(`{
+	"exchanges": {
+		"pinpt.exchange.test.main": {
+			"type": "topic",
+			"autodelete": true,
+			"default": true
+		},
+		"echo": {
+			"type": "topic",
+			"autodelete": true,
+			"bind": [
+				{
+					"routing": "echo",
+					"exchange": "pinpt.exchange.test.main"
+				}
+			]
+		},
+		"echoresult": {
+			"type": "topic",
+			"autodelete": true,
+			"bind": [
+				{
+					"routing": "echo.result",
+					"exchange": "pinpt.exchange.test.main"
+				}
+			]
+		}
+	},
+	"queues": {
+		"echo": {
+			"autodelete": true,
+			"exchange": "echo",
+			"routing": "#",
+			"durable": false
+		},
+		"echoresult": {
+ 			"autodelete": true,
+			"exchange": "echoresult",
+			"routing": "#",
+			"durable": false
+		}
+	},
+	"jobs": {
+		"echo": {
+			"worker": "echo",
+			"queue": "echo",
+			"publish": "echo.result",
+			"concurrency": 100
+		},
+		"echoresult": {
+			"worker": "echoresult",
+			"queue": "echoresult",
+			"concurrency": 100
+		}
+	},
+	"channel": {
+		"prefetch_count": 100
+	}
+}`)
+	total := 1000
+	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: false}
+	echo.wg.Add(total)
+	Register("echoresult", echo)
+	defer Unregister("echoresult")
+	config, err := NewConfig(r)
+	assert.Nil(err)
+	assert.NotNil(config)
+	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
+	assert.Equal("localhost:6379", config.RedisURL)
+	defer config.Close()
+	mgr, err := NewManager(config)
+	assert.Nil(err)
+	assert.NotNil(mgr)
+	defer mgr.Close()
+	for i := 0; i < total; i++ {
+		go config.PublishJSONString("echo", `{"hi":"heya"}`)
+	}
+	echo.wg.Wait()
+	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
+	mgr.Close()
+	assert.Nil(config.Close())
+}
+
+func TestErrorChannel(t *testing.T) {
+	assert := assert.New(t)
+	r := strings.NewReader(`{
+	"exchanges": {
+		"pinpt.exchange.test.main": {
+			"type": "topic",
+			"autodelete": true,
+			"default": true
+		},
+		"echo": {
+			"type": "topic",
+			"autodelete": true,
+			"bind": [
+				{
+					"routing": "echo",
+					"exchange": "pinpt.exchange.test.main"
+				}
+			]
+		},
+		"echoresult": {
+			"type": "topic",
+			"autodelete": true,
+			"bind": [
+				{
+					"routing": "echo.result",
+					"exchange": "pinpt.exchange.test.main"
+				}
+			]
+		}
+	},
+	"queues": {
+		"echo": {
+			"autodelete": true,
+			"exchange": "echo",
+			"routing": "#",
+			"durable": false
+		},
+		"echoresult": {
+ 			"autodelete": true,
+			"exchange": "echoresult",
+			"routing": "#",
+			"durable": false
+		}
+	},
+	"jobs": {
+		"echo": {
+			"worker": "echo",
+			"queue": "echo",
+			"publish": "echo.result"
+		},
+		"echoresult": {
+			"worker": "echoresult",
+			"queue": "echoresult"
+		}
+	}
+}`)
+	echo := &echoBackAsyncError2{wg: sync.WaitGroup{}}
+	echo.wg.Add(1)
+	Register("echoresult", echo)
+	defer Unregister("echoresult")
+	config, err := NewConfig(r)
+	assert.Nil(err)
+	assert.NotNil(config)
+	assert.Equal("amqp://guest:guest@localhost:5672/", config.MQURL)
+	assert.Equal("localhost:6379", config.RedisURL)
+	defer config.Close()
+	mgr, err := NewManager(config)
+	assert.Nil(err)
+	assert.NotNil(mgr)
+	defer mgr.Close()
+	assert.Nil(config.PublishJSONString("echo", `{"hi":"heya"}`))
+	echo.wg.Wait()
+	err = <-mgr.ErrorChannel()
+	assert.Error(err, "should have been an error")
+	assert.Equal("error", err.Error())
 	mgr.Close()
 	assert.Nil(config.Close())
 }
