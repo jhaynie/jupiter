@@ -28,6 +28,7 @@ type echoBackAsync struct {
 	buf   []byte
 	wg    sync.WaitGroup
 	delay bool
+	mu    sync.Mutex
 }
 
 func (e *echoBackAsync) Work(msg WorkMessage, done Done) error {
@@ -36,7 +37,9 @@ func (e *echoBackAsync) Work(msg WorkMessage, done Done) error {
 			time.Sleep(time.Second)
 		}
 		buf, err := ioutil.ReadAll(msg.Reader())
+		e.mu.Lock()
 		e.buf = buf
+		e.mu.Unlock()
 		done(err)
 		e.wg.Done()
 	}()
@@ -46,13 +49,16 @@ func (e *echoBackAsync) Work(msg WorkMessage, done Done) error {
 type echoBackAsyncError struct {
 	buf []byte
 	wg  sync.WaitGroup
+	mu  sync.Mutex
 }
 
 func (e *echoBackAsyncError) Work(msg WorkMessage, done Done) error {
 	go func() {
 		time.Sleep(time.Second)
 		buf, err := ioutil.ReadAll(msg.Reader())
+		e.mu.Lock()
 		e.buf = buf
+		e.mu.Unlock()
 		// should be an error
 		msg.Config.Publish("abc", []byte(""), WithAppID("123"), WithDeliveryMode(10))
 		done(err)
@@ -219,7 +225,7 @@ func TestAsyncJobWorker(t *testing.T) {
 		}
 	}
 }`)
-	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: true}
+	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: true, mu: sync.Mutex{}}
 	echo.wg.Add(1)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
@@ -235,7 +241,9 @@ func TestAsyncJobWorker(t *testing.T) {
 	defer mgr.Close()
 	config.Publish("echo", []byte(`{"hi":"heya"}`))
 	echo.wg.Wait()
+	echo.mu.Lock()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
+	echo.mu.Unlock()
 	mgr.Close()
 	assert.Nil(config.Close())
 }
@@ -374,7 +382,7 @@ func TestAutoReconnect(t *testing.T) {
 		}
 	}
 }`)
-	echo := &echoBackAsyncError{wg: sync.WaitGroup{}}
+	echo := &echoBackAsyncError{wg: sync.WaitGroup{}, mu: sync.Mutex{}}
 	echo.wg.Add(1)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
@@ -390,7 +398,9 @@ func TestAutoReconnect(t *testing.T) {
 	defer mgr.Close()
 	config.Publish("echo", []byte(`{"hi":"heya"}`))
 	echo.wg.Wait()
+	echo.mu.Lock()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
+	echo.mu.Unlock()
 	mgr.Close()
 	assert.Nil(config.Close())
 }
@@ -457,7 +467,7 @@ func TestAsyncJobWorkerMulti(t *testing.T) {
 	}
 }`)
 	total := 1000
-	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: false}
+	echo := &echoBackAsync{wg: sync.WaitGroup{}, delay: false, mu: sync.Mutex{}}
 	echo.wg.Add(total)
 	Register("echoresult", echo)
 	defer Unregister("echoresult")
@@ -475,7 +485,9 @@ func TestAsyncJobWorkerMulti(t *testing.T) {
 		go config.PublishJSONString("echo", `{"hi":"heya"}`)
 	}
 	echo.wg.Wait()
+	echo.mu.Lock()
 	assert.Equal(`{"hi":"heya"}`, string(echo.buf))
+	echo.mu.Unlock()
 	mgr.Close()
 	assert.Nil(config.Close())
 }
