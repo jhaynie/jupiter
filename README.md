@@ -115,9 +115,7 @@ if err != nil {
 	return err
 }
 defer mgr.Close()
-config.Publish("echo", amqp.Publishing{
-	Body: []byte(`{"hi":"heya"}`),
-})
+config.Publish([]byte(`{"hi":"heya"}`), jupiter.WithType("echo"))
 ```
 
 If it works, you should see `{"hi":"heya"}` in the console (based on our `fmt.Println` in our job code above).
