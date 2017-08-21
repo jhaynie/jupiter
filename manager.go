@@ -119,7 +119,8 @@ func NewManager(config *Config) (*WorkerManager, error) {
 		}
 		q.name = job.Queue
 		q.config = config
-		q.session = config.Exchanges[q.Exchange].session
+		ex := config.Exchanges[q.Exchange]
+		q.session = NewSession(ctx, config.MQURL, q.Exchange, ex.Type, q.Durable, q.Autodelete)
 		count := job.Concurrency
 		if count == 0 {
 			count = defaultCount

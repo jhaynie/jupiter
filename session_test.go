@@ -9,7 +9,7 @@ import (
 )
 
 func TestSessionConnect(t *testing.T) {
-	session := NewSession(context.Background(), "amqp:///", "pubsub", "direct", false, true)
+	session := NewSession(context.Background(), "amqp:///", "pubsub1", "direct", false, true)
 	session.Close()
 }
 
@@ -17,12 +17,12 @@ func TestSessionPubSub(t *testing.T) {
 	assert := assert.New(t)
 	ctx, done := context.WithCancel(context.Background())
 	defer done()
-	session1 := NewSession(ctx, "amqp:///", "pubsub", "topic", false, true)
+	session1 := NewSession(ctx, "amqp:///", "pubsub2", "topic", false, true)
 	defer session1.Close()
-	msg := session1.StartConsumer("pubsub", "", "#")
-	session2 := NewSession(ctx, "amqp:///", "pubsub", "topic", false, true)
+	msg := session1.StartConsumer("pubsub2", "", "#")
+	session2 := NewSession(ctx, "amqp:///", "pubsub2", "topic", false, true)
 	defer session2.Close()
-	session2.StartPublisher("pubsub")
+	session2.StartPublisher("pubsub2")
 	session2.Publish([]byte("hello"), WithType("foo.bar"))
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -40,12 +40,12 @@ func TestSessionPubSubMulti(t *testing.T) {
 	assert := assert.New(t)
 	ctx, done := context.WithCancel(context.Background())
 	defer done()
-	session1 := NewSession(ctx, "amqp:///", "pubsub", "topic", false, true)
+	session1 := NewSession(ctx, "amqp:///", "pubsub3", "topic", false, true)
 	defer session1.Close()
-	msg := session1.StartConsumer("pubsub", "", "#")
-	session2 := NewSession(ctx, "amqp:///", "pubsub", "topic", false, true)
+	msg := session1.StartConsumer("pubsub3", "", "#")
+	session2 := NewSession(ctx, "amqp:///", "pubsub3", "topic", false, true)
 	defer session2.Close()
-	session2.StartPublisher("pubsub")
+	session2.StartPublisher("pubsub3")
 	x := 5000
 	wg := sync.WaitGroup{}
 	wg.Add(x)
@@ -67,10 +67,10 @@ func TestSessionPubSubSame(t *testing.T) {
 	assert := assert.New(t)
 	ctx, done := context.WithCancel(context.Background())
 	defer done()
-	session := NewSession(ctx, "amqp:///", "pubsub", "topic", false, true)
+	session := NewSession(ctx, "amqp:///", "pubsub4", "topic", false, true)
 	defer session.Close()
-	msg := session.StartConsumer("pubsub", "", "#")
-	session.StartPublisher("pubsub")
+	msg := session.StartConsumer("pubsub4", "", "#")
+	session.StartPublisher("pubsub4")
 	x := 5000
 	wg := sync.WaitGroup{}
 	wg.Add(x)

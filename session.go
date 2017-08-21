@@ -485,7 +485,7 @@ func WithRouting(key string) WithPublishOption {
 
 // Publish will publish a message on the channel
 func (s Session) Publish(body []byte, opts ...WithPublishOption) error {
-	msg := &amqp.Delivery{Body: body}
+	msg := &amqp.Delivery{Body: body, Timestamp: time.Now()}
 	for _, o := range opts {
 		o(msg)
 	}
